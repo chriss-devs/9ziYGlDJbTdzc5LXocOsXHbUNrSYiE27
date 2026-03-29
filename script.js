@@ -134,6 +134,8 @@ auth.onAuthStateChanged((user) => {
 
     initListeners();
     checkActiveRegister();
+    db.ref("deambulantes/active").off();
+    db.ref("deambulantes/history").off();
     initDeambulantesListeners();
   }
 });
@@ -1338,10 +1340,16 @@ function initDeambulantesListeners() {
     .limitToLast(50)
     .on("value", (snap) => {
       const data = snap.val() || {};
-      deambulanteHistory = Object.entries(data).map(([k, v]) => ({
-        id: k,
-        ...v,
-      }));
+      deambulanteHistory = Object.entries(data).map(([k, v]) => {
+        const items = Array.isArray(v.items) ? v.items : Object.values(v.items || {});
+        const itemsSold = Array.isArray(v.itemsSold) ? v.itemsSold : Object.values(v.itemsSold || {});
+        return {
+          id: k,
+          ...v,
+          items,
+          itemsSold
+        };
+      });
       deambulanteHistory.sort(
         (a, b) => (b.timestampReturn || 0) - (a.timestampReturn || 0),
       );
@@ -1381,27 +1389,35 @@ function renderDeambulantesHistory() {
   if (!tbody) return;
   tbody.innerHTML = "";
   deambulanteHistory.forEach((d) => {
-    const salida = new Date(d.timestampOut).toLocaleTimeString("es-MX", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    const regreso = d.timestampReturn
-      ? new Date(d.timestampReturn).toLocaleTimeString("es-MX", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : "-";
-    const totalSold = (d.itemsSold || []).reduce((a, i) => a + i.qty, 0);
-    const statusClass =
-      d.status === "completo" ? "color:var(--green)" : "color:var(--red)";
-    tbody.innerHTML += `<tr>
-            <td>${d.userName}</td>
-            <td>${salida}</td>
-            <td>${regreso}</td>
-            <td>${totalSold} items</td>
-            <td>$${Number(d.moneyCollected || 0).toFixed(2)}</td>
-            <td style="${statusClass}; font-weight:600; text-transform:capitalize;">${d.status || "-"}</td>
-        </tr>`;
+    try {
+      const salida = d.timestampOut ? new Date(d.timestampOut).toLocaleTimeString("es-MX", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }) : "-";
+      const regreso = d.timestampReturn
+        ? new Date(d.timestampReturn).toLocaleTimeString("es-MX", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "-";
+      
+      const itemsSold = Array.isArray(d.itemsSold) ? d.itemsSold : Object.values(d.itemsSold || {});
+      const totalSold = itemsSold.reduce((a, i) => a + (Number(i.qty) || 0), 0);
+      
+      const statusClass =
+        d.status === "completo" ? "color:var(--green)" : "color:var(--red)";
+      tbody.innerHTML += `<tr>
+              <td>${d.userName || "Sin nombre"}</td>
+              <td style="color:var(--text-dim); font-size:0.85rem;">${d.adminOut || "Admin"}</td>
+              <td>${salida}</td>
+              <td>${regreso}</td>
+              <td>${totalSold} items</td>
+              <td>$${Number(d.moneyCollected || 0).toFixed(2)}</td>
+              <td style="${statusClass}; font-weight:600; text-transform:capitalize;">${d.status || "-"}</td>
+          </tr>`;
+    } catch (e) {
+      console.error("Error al renderizar fila de historial:", e, d);
+    }
   });
 }
 
@@ -1477,6 +1493,7 @@ function confirmSendDeambulante() {
     items: items,
     changeMoney: changeMoney,
     timestampOut: Date.now(),
+    adminOut: auth.currentUser ? auth.currentUser.email : "Admin",
   });
 
   const prodStr = items.map((i) => `${i.qty}x ${i.name}`).join(", ");
@@ -1619,6 +1636,7 @@ function confirmReturnDeambulante() {
 
   db.ref("deambulantes/history").push({
     userName: d.userName,
+    adminOut: d.adminOut || "Admin",
     items: d.items,
     itemsSold: itemsSold,
     changeMoney: changeMoney,
