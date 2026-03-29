@@ -17,7 +17,7 @@
   --border: rgba(255, 255, 255, 0.06);
   --border-accent: rgba(168, 85, 247, 0.2);
   --text: #fafafa;
-  --text-muted: rgba(250, 250, 250, 0.45);
+  --text-muted: rgba(250, 250, 250, 0.55);
   --text-dim: rgba(250, 250, 250, 0.3);
   --red: #ef4444;
   --green: #22c55e;
@@ -108,7 +108,10 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
+  background:
+    radial-gradient(ellipse at 65% 40%, rgba(168, 85, 247, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse at 20% 80%, rgba(236, 72, 153, 0.08) 0%, transparent 50%),
+    var(--bg);
 }
 
 .login-box {
@@ -118,10 +121,11 @@ body {
   padding: 44px 36px 36px;
   width: 90%;
   max-width: 380px;
+  box-shadow: 0 0 0 1px rgba(168, 85, 247, 0.1), 0 32px 60px rgba(0, 0, 0, 0.4);
 }
 
 .login-box h1 {
-  font-size: 1.4rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--text);
   text-align: center;
@@ -131,18 +135,19 @@ body {
 
 .login-logo {
   display: block;
-  width: 80px;
-  height: 80px;
+  width: 92px;
+  height: 92px;
   object-fit: cover;
   margin: 0 auto 18px;
   border-radius: 50%;
   border: 2px solid var(--border);
+  box-shadow: 0 0 0 4px rgba(168, 85, 247, 0.12);
 }
 
 .login-box .subtitle {
   text-align: center;
-  color: var(--text-dim);
-  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.78rem;
   margin-bottom: 28px;
   letter-spacing: 1.5px;
   text-transform: uppercase;
@@ -225,6 +230,7 @@ body {
 .sidebar-header {
   padding: 22px 18px;
   border-bottom: 1px solid var(--border);
+  background: linear-gradient(to bottom, rgba(168, 85, 247, 0.06), transparent);
 }
 
 .sidebar-header h2 {
@@ -234,14 +240,14 @@ body {
 }
 
 .sidebar-header span {
-  font-size: 0.65rem;
+  font-size: 0.7rem;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 1.5px;
 }
 
 .sidebar-role {
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   color: var(--accent-light);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -253,7 +259,7 @@ body {
   padding: 16px 10px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .nav-link {
@@ -290,10 +296,13 @@ body {
 }
 
 .nav-link .icon {
-  font-size: 1rem;
   width: 22px;
-  text-align: center;
-  opacity: 0.7;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: var(--transition);
 }
 
 .nav-logout {
@@ -337,7 +346,7 @@ body {
 }
 
 .section-header h1 {
-  font-size: 1.5rem;
+  font-size: 1.75rem;
   font-weight: 700;
   color: var(--text);
   margin-bottom: 2px;
@@ -502,7 +511,7 @@ body {
 .inv-table th {
   padding: 12px 16px;
   text-align: left;
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-dim);
@@ -598,12 +607,15 @@ body {
 
 .stat-card:hover {
   border-color: var(--border-accent);
+  background: var(--card-hover);
 }
 
 .stat-card .stat-icon {
-  font-size: 1.4rem;
-  margin-bottom: 6px;
-  opacity: 0.6;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
 }
 
 .stat-card .stat-value {
@@ -714,7 +726,7 @@ body {
 .history-table th {
   padding: 10px 14px;
   text-align: left;
-  font-size: 0.72rem;
+  font-size: 0.76rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-dim);
@@ -1287,4 +1299,34 @@ input[type="number"] {
   border-color: var(--accent);
   outline: none;
   background: rgba(168, 85, 247, 0.04);
+}
+
+.summary-row-alt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.summary-row-alt .label {
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.summary-row-alt .value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.summary-row-alt.principal .label {
+  color: var(--text);
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.summary-row-alt.principal .value {
+  color: var(--accent-light);
+  font-size: 1.4rem;
 }

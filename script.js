@@ -497,9 +497,7 @@ function showDeamDetails(encodedStr) {
         '<ul style="list-style:none; padding:0; margin:0;">' +
         data.itemsSold
           .map(
-            (
-              i,
-            ) => `<li style="padding:8px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between;">
+            (i) => `<li style="padding:8px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between;">
                     <span><strong>${i.qty}x</strong> ${i.name}</span>
                     <span style="color:var(--accent-light); font-weight:600;">$${(i.price * i.qty).toFixed(2)}</span>
                 </li>`,
@@ -510,14 +508,41 @@ function showDeamDetails(encodedStr) {
       html +=
         '<div style="text-align:center; color:var(--text-dim); padding:10px;">No se vendió nada</div>';
     }
-    html += `<div style="margin-top:12px; padding-top:12px; border-top:2px solid var(--border);">`;
-    html += `<div style="display:flex; justify-content:space-between; padding:4px 0;"><span>Esperado:</span><span style="font-weight:600;">$${Number(data.totalExpected).toFixed(2)}</span></div>`;
-    html += `<div style="display:flex; justify-content:space-between; padding:4px 0;"><span>Cobrado:</span><span style="font-weight:600; color:${data.moneyCollected >= data.totalExpected ? "var(--green)" : "var(--red)"};">$${Number(data.moneyCollected).toFixed(2)}</span></div>`;
-    if (data.moneyCollected < data.totalExpected) {
-      const diff = data.totalExpected - data.moneyCollected;
-      html += `<div style="display:flex; justify-content:space-between; padding:4px 0; color:var(--red); font-weight:700;"><span>Faltante:</span><span>$${diff.toFixed(2)}</span></div>`;
-    }
-    html += `<div style="text-align:center; margin-top:10px; font-weight:700; color:${data.isComplete ? "var(--green)" : "var(--red)"};">Estado: ${data.isComplete ? "✅ Completo" : "⚠️ Incompleto"}</div>`;
+
+    const totalSoldPrice = Number(data.totalExpected || 0);
+    const changeMoney = Number(data.changeMoney || 0);
+    const moneyReturned = Number(data.moneyReturned || data.moneyCollected + changeMoney || 0);
+    const totalExpected = totalSoldPrice + changeMoney;
+    const isComplete = data.isComplete;
+    const diff = moneyReturned - totalExpected;
+
+    html += `<div style="margin-top:15px; padding-top:15px; border-top:2px solid var(--border);">`;
+    html += `
+        <div class="summary-row-alt">
+            <span class="label">Productos</span>
+            <span class="value">$${totalSoldPrice.toFixed(2)}</span>
+        </div>
+        <div class="summary-row-alt">
+            <span class="label">Vuelto (Fondo)</span>
+            <span class="value">$${changeMoney.toFixed(2)}</span>
+        </div>
+        <div class="summary-row-alt principal" style="margin-top:10px; border-top: 1px solid var(--border);">
+            <span class="label">Dinero Cobrado</span>
+            <span class="value">$${moneyReturned.toFixed(2)}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:.8rem; color:var(--text-dim);">
+            <span>Total Esperado:</span>
+            <span>$${totalExpected.toFixed(2)}</span>
+        </div>
+        ${
+          !isComplete
+            ? `<div style="text-align:right; font-size:.85rem; color:var(--red); font-weight:600;">Faltante: $${Math.abs(diff).toFixed(2)}</div>`
+            : diff > 0
+              ? `<div style="text-align:right; font-size:.85rem; color:var(--green); font-weight:600;">Sobrante: $${diff.toFixed(2)}</div>`
+              : ""
+        }
+        <div style="text-align:center; margin-top:10px; font-weight:700; color:${isComplete ? "var(--green)" : "var(--red)"};">Estado: ${isComplete ? "✅ Completo" : "⚠️ Incompleto"}</div>
+    `;
     html += "</div>";
     content.innerHTML = html;
     document.getElementById("logDetailsModal").classList.add("show");
@@ -1541,37 +1566,48 @@ function recalcReturnSummary() {
   const changeMoney = Number(d.changeMoney);
   const returnMoney =
     parseFloat(document.getElementById("returnDeamMoney").value) || 0;
-  const moneyCollected = returnMoney - changeMoney;
 
-  let soldHtml = "";
-  let totalExpected = 0;
+  let totalSoldPrice = 0;
   d.items.forEach((item, idx) => {
     const returnedQty =
       parseInt(
         document.querySelector(`.return-prod-qty[data-idx="${idx}"]`)?.value,
       ) || 0;
     const soldQty = item.qty - returnedQty;
-    const lineTotal = soldQty * item.price;
-    totalExpected += lineTotal;
-    if (soldQty > 0) {
-      soldHtml += `<div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--border);">
-                <span>${item.name} (${soldQty})</span>
-                <span style="color:var(--accent-light); font-weight:600;">$${lineTotal.toFixed(2)}</span>
-            </div>`;
-    }
+    totalSoldPrice += soldQty * item.price;
   });
 
-  const isComplete = moneyCollected >= totalExpected;
+  const totalExpected = totalSoldPrice + changeMoney;
+  const isComplete = returnMoney >= totalExpected;
+  const diff = returnMoney - totalExpected;
+
   document.getElementById("returnDeamSummary").innerHTML = `
-        ${soldHtml}
-        <div style="display:flex; justify-content:space-between; padding:8px 0; margin-top:8px; font-weight:700;">
-            <span>Dinero Cobrado:</span>
-            <span style="color:${moneyCollected >= 0 ? "var(--green)" : "var(--red)"};">$${moneyCollected.toFixed(2)}</span>
+        <div class="summary-row-alt">
+            <span class="label">Productos</span>
+            <span class="value">$${totalSoldPrice.toFixed(2)}</span>
         </div>
-        <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:.88rem; color:var(--text-dim);">
-            <span>Esperado según ventas:</span><span>$${totalExpected.toFixed(2)}</span>
+        <div class="summary-row-alt">
+            <span class="label">Vuelto (Fondo)</span>
+            <span class="value">$${changeMoney.toFixed(2)}</span>
         </div>
-        <div style="text-align:center; margin-top:10px; font-weight:700; color:${isComplete ? "var(--green)" : "var(--red)"};">Estado: ${isComplete ? "✅ Completo" : "⚠️ Incompleto (faltante)"}</div>
+        <div class="summary-row-alt principal" style="margin-top:12px; padding-top:12px; border-top: 1px solid var(--border);">
+            <span class="label">Dinero Cobrado</span>
+            <span class="value">$${returnMoney.toFixed(2)}</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; padding:4px 0; font-size:.8rem; color:var(--text-dim);">
+            <span>Total Esperado:</span>
+            <span>$${totalExpected.toFixed(2)}</span>
+        </div>
+        ${
+          !isComplete
+            ? `<div style="text-align:right; font-size:.85rem; color:var(--red); font-weight:600;">Faltante: $${Math.abs(diff).toFixed(2)}</div>`
+            : diff > 0
+              ? `<div style="text-align:right; font-size:.85rem; color:var(--green); font-weight:600;">Sobrante: $${diff.toFixed(2)}</div>`
+              : ""
+        }
+        <div style="text-align:center; margin-top:15px; font-weight:700; font-size:1rem; color:${isComplete ? "var(--green)" : "var(--red)"};">
+            ${isComplete ? "✅ TODO CORRECTO" : "⚠️ DINERO INCOMPLETO"}
+        </div>
     `;
 }
 
@@ -1656,6 +1692,8 @@ function confirmReturnDeambulante() {
       itemsSold,
       totalExpected,
       moneyCollected,
+      changeMoney,
+      moneyReturned: returnMoney,
       isComplete,
       userName: d.userName,
     }),
