@@ -786,10 +786,11 @@ function updateStats() {
   hBody.innerHTML = "";
   filteredSales.slice(0, 100).forEach((s) => {
     const d = new Date(s.timestamp);
+    const isDeambulante = (s.user || "").includes("(deambulante)");
     hBody.innerHTML += `<tr>
             <td>${d.toLocaleDateString("es-MX")} ${d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}</td>
             <td>${s.productName}</td>
-            <td style="color:var(--text-dim); font-size:0.85rem;">${s.user || "-"}</td>
+            <td style="color:var(--text-dim); font-size:0.85rem;">${isDeambulante ? "🛒 " : ""}${s.user || "-"}</td>
             <td style="color:var(--text-dim); font-size:0.85rem;">Efec: $${Number(s.cashReceived || s.price).toFixed(2)}<br>Vuelto: $${Number(s.change || 0).toFixed(2)}</td>
             <td style="color:var(--green); font-weight:700;">$${Number(s.price).toFixed(2)}</td>
             <td><button class="btn-delete" data-sale-id="${s.id}">Revertir</button></td>
