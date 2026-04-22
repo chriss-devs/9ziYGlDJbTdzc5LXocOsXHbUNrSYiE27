@@ -29,6 +29,10 @@ let posCategoryFilter = "all";
 let registerSession = null;
 let activeDeambulantes = {};
 let deambulanteHistory = [];
+let logsFilterUser = "";
+let logsFilterAction = "";
+let deletingUserId = null;
+let editingUserId = null;
 
 function showToast(msg, type = "success") {
   const c = document.getElementById("toastContainer");
@@ -338,26 +342,51 @@ function openCheckout() {
 
   document.getElementById("chkTotalAmt").textContent = "$" + total.toFixed(2);
   document.getElementById("chkReceivedAmt").value = "";
+  document.getElementById("chkReceivedAmt").style.display = "none";
   document.getElementById("chkChangeBox").classList.add("hidden");
   document.getElementById("chkChangeAmt").textContent = "$0.00";
   document.getElementById("chkConfirm").disabled = true;
 
-  document.getElementById("checkoutModal").classList.add("show");
+  // Reset quick-amount buttons
+  document.querySelectorAll(".quick-amt-btn").forEach(btn => btn.classList.remove("selected"));
 
-  setTimeout(() => {
-    document.getElementById("chkReceivedAmt").focus();
-  }, 100);
+  document.getElementById("checkoutModal").classList.add("show");
 }
 
-function calculateChange() {
+function selectQuickAmount(amtKey) {
   const total = Object.values(currentCart).reduce(
     (acc, i) => acc + i.price * i.qty,
     0,
   );
-  const recv = parseFloat(document.getElementById("chkReceivedAmt").value || 0);
+  const input = document.getElementById("chkReceivedAmt");
+
+  // Highlight selected button
+  document.querySelectorAll(".quick-amt-btn").forEach(btn => btn.classList.remove("selected"));
+  const activeBtn = document.querySelector(`.quick-amt-btn[data-amt="${amtKey}"]`);
+  if (activeBtn) activeBtn.classList.add("selected");
+
+  if (amtKey === "custom") {
+    input.style.display = "block";
+    input.value = "";
+    input.focus();
+    document.getElementById("chkChangeBox").classList.add("hidden");
+    document.getElementById("chkConfirm").disabled = true;
+  } else {
+    input.style.display = "none";
+    let received;
+    if (amtKey === "exact") {
+      received = total;
+    } else {
+      received = parseFloat(amtKey);
+    }
+    input.value = received;
+    calculateChangeFromValue(received, total);
+  }
+}
+
+function calculateChangeFromValue(recv, total) {
   const btn = document.getElementById("chkConfirm");
   const changeBox = document.getElementById("chkChangeBox");
-
   if (recv >= total) {
     changeBox.classList.remove("hidden");
     document.getElementById("chkChangeAmt").textContent =
@@ -367,6 +396,15 @@ function calculateChange() {
     changeBox.classList.add("hidden");
     btn.disabled = true;
   }
+}
+
+function calculateChange() {
+  const total = Object.values(currentCart).reduce(
+    (acc, i) => acc + i.price * i.qty,
+    0,
+  );
+  const recv = parseFloat(document.getElementById("chkReceivedAmt").value || 0);
+  calculateChangeFromValue(recv, total);
 }
 
 function completeCheckout() {
@@ -917,9 +955,29 @@ function exportToExcel() {
 }
 
 function openUserModal() {
+  editingUserId = null;
+  document.getElementById("userModalTitle").textContent = "Agregar Usuario";
   document.getElementById("uEmailPrefix").value = "";
+  document.getElementById("uEmailPrefix").disabled = false;
+  document.getElementById("userEmailGroup").style.opacity = "1";
   document.getElementById("uPass").value = "";
+  document.getElementById("uPassOptional").textContent = "";
   document.getElementById("uRole").value = "vendor";
+  document.getElementById("btnSaveUser").textContent = "Crear";
+  document.getElementById("userModal").classList.add("show");
+}
+
+function openEditUser(id, email, role) {
+  editingUserId = id;
+  document.getElementById("userModalTitle").textContent = "Editar Usuario";
+  const prefix = email.replace("@prom2026.com", "");
+  document.getElementById("uEmailPrefix").value = prefix;
+  document.getElementById("uEmailPrefix").disabled = true;
+  document.getElementById("userEmailGroup").style.opacity = "0.6";
+  document.getElementById("uPass").value = "";
+  document.getElementById("uPassOptional").textContent = "(vacío = no cambiar)";
+  document.getElementById("uRole").value = role === "disabled" ? "vendor" : role;
+  document.getElementById("btnSaveUser").textContent = "Guardar";
   document.getElementById("userModal").classList.add("show");
 }
 
@@ -928,6 +986,34 @@ function closeUserModal() {
 }
 
 function createUserAccount() {
+  if (editingUserId) {
+    // Edit mode: only update role (and optionally password)
+    const role = document.getElementById("uRole").value;
+    const pass = document.getElementById("uPass").value;
+    const userRec = appUsers.find((u) => u.id === editingUserId);
+    if (!userRec) return;
+
+    const btn = document.getElementById("btnSaveUser");
+    btn.textContent = "Guardando...";
+    btn.disabled = true;
+
+    const finish = () => {
+      db.ref("users/" + editingUserId + "/role").set(role);
+      logAction("Usuario", `Editó usuario: ${userRec.email} → rol: ${role}`);
+      showToast("Usuario actualizado", "success");
+      closeUserModal();
+      btn.textContent = "Guardar";
+      btn.disabled = false;
+    };
+
+    if (pass && pass.length >= 6) {
+      // Password changes require Admin SDK - show info toast only
+      showToast("Cambio de contraseña no disponible desde el panel. Solo se actualizará el rol.", "info");
+    }
+    finish();
+    return;
+  }
+
   const emailPrefix = document.getElementById("uEmailPrefix").value.trim();
   const pass = document.getElementById("uPass").value;
   const role = document.getElementById("uRole").value;
@@ -1054,13 +1140,22 @@ function renderLogs() {
   if (!tbody) return;
   tbody.innerHTML = "";
 
-  if (appLogs.length === 0) {
+  let filtered = appLogs;
+  if (logsFilterUser) {
+    const term = logsFilterUser.toLowerCase();
+    filtered = filtered.filter((l) => (l.user || "").toLowerCase().includes(term));
+  }
+  if (logsFilterAction) {
+    filtered = filtered.filter((l) => (l.action || "") === logsFilterAction);
+  }
+
+  if (filtered.length === 0) {
     tbody.innerHTML =
-      '<tr><td colspan="4" style="text-align:center; padding:20px;">No hay registros de actividad</td></tr>';
+      '<tr><td colspan="4" style="text-align:center; padding:20px;">No hay registros que coincidan</td></tr>';
     return;
   }
 
-  appLogs.slice(0, 150).forEach((l) => {
+  filtered.slice(0, 150).forEach((l) => {
     const d = new Date(l.timestamp);
     tbody.innerHTML += `<tr>
             <td>${d.toLocaleDateString("es-MX")} ${d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" })}</td>
@@ -1085,8 +1180,10 @@ function renderUsers() {
             <td>${u.email} ${isCurrent ? '<span style="color:var(--accent-light); font-size:12px;">(Tú)</span>' : ""}</td>
             <td><span style="padding: 4px 8px; border-radius: 4px; background: ${isDisabled ? "#666" : u.role === "admin" ? "#8b5cf6" : "#a855f7"}">${u.role}</span></td>
             <td>
+                ${!isCurrent ? `<button class="btn-edit" onclick="openEditUser('${u.id}', '${u.email}', '${u.role}')">Editar</button>` : ""}
                 ${!isCurrent && !isDisabled ? `<button class="btn-delete" onclick="revokeUserAccess('${u.id}', '${u.email}')">Deshabilitar</button>` : ""}
                 ${!isCurrent && isDisabled ? `<button class="btn-edit" onclick="restoreUserAccess('${u.id}', '${u.email}')">Habilitar</button>` : ""}
+                ${!isCurrent ? `<button class="btn-delete" onclick="openDeleteUser('${u.id}', '${u.email}')">Eliminar</button>` : ""}
             </td>
         </tr>`;
   });
@@ -1106,6 +1203,28 @@ function restoreUserAccess(id, email) {
     logAction("Usuario", "Habilitó acceso a: " + email);
     showToast("Cuenta habilitada", "success");
   }
+}
+
+function openDeleteUser(id, email) {
+  deletingUserId = id;
+  document.getElementById("deleteUserText").textContent =
+    `¿Estás seguro de que quieres eliminar al usuario ${email}? Esta acción solo borra el registro local.`;
+  document.getElementById("deleteUserOverlay").classList.add("show");
+}
+
+function closeDeleteUser() {
+  deletingUserId = null;
+  document.getElementById("deleteUserOverlay").classList.remove("show");
+}
+
+function confirmDeleteUser() {
+  if (!deletingUserId) return;
+  const userRec = appUsers.find((u) => u.id === deletingUserId);
+  const email = userRec ? userRec.email : "desconocido";
+  db.ref("users/" + deletingUserId).remove();
+  logAction("Usuario", "Eliminó registro de usuario: " + email);
+  showToast("Usuario eliminado", "error");
+  closeDeleteUser();
 }
 
 function nukeProducts() {
@@ -1321,6 +1440,38 @@ document.addEventListener("DOMContentLoaded", () => {
   document
     .getElementById("logDetailsClose")
     ?.addEventListener("click", closeLogDetails);
+
+  // Logs filters
+  const logsFilterUserEl = document.getElementById("logsFilterUser");
+  if (logsFilterUserEl) {
+    logsFilterUserEl.addEventListener("input", () => {
+      logsFilterUser = logsFilterUserEl.value.trim();
+      renderLogs();
+    });
+  }
+  const logsFilterActionEl = document.getElementById("logsFilterAction");
+  if (logsFilterActionEl) {
+    logsFilterActionEl.addEventListener("change", () => {
+      logsFilterAction = logsFilterActionEl.value;
+      renderLogs();
+    });
+  }
+  const btnClearLogsFilter = document.getElementById("btnClearLogsFilter");
+  if (btnClearLogsFilter) {
+    btnClearLogsFilter.addEventListener("click", () => {
+      logsFilterUser = "";
+      logsFilterAction = "";
+      document.getElementById("logsFilterUser").value = "";
+      document.getElementById("logsFilterAction").value = "";
+      renderLogs();
+    });
+  }
+
+  // Delete user confirmation
+  const btnCancelDeleteUser = document.getElementById("btnCancelDeleteUser");
+  if (btnCancelDeleteUser) btnCancelDeleteUser.addEventListener("click", closeDeleteUser);
+  const btnConfirmDeleteUser = document.getElementById("btnConfirmDeleteUser");
+  if (btnConfirmDeleteUser) btnConfirmDeleteUser.addEventListener("click", confirmDeleteUser);
 
   document
     .getElementById("navDeambulantes")
